@@ -3,56 +3,69 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>ProjectX Purchase Orders</title>
+    <title>ProjectX Invoice Reconciliation</title>
   </head>
   <body>
-    <main class="app-shell">
-      <header class="hero">
-        <div>
-          <p class="eyebrow">ProjectX</p>
-          <h1>Purchase Order Console</h1>
-          <p class="subhead">
-            Centralized view for leadership to monitor all incoming purchase orders.
-          </p>
-        </div>
-      </header>
+    <main class="phone-shell">
+      <section class="app-card">
+        <header class="top">
+          <div class="top-head">
+            <div>
+              <p class="eyebrow">ProjectX</p>
+              <h1>Joe Tech Engineering</h1>
+              <p class="subhead">Track contracts, purchase orders, and progress claims.</p>
+            </div>
+            <img class="brand-logo" src="logo.png" alt="Joe Tech Engineering logo" />
+          </div>
+          <div class="metric-row" id="metricRow"></div>
+        </header>
 
-      <section class="stats" id="stats"></section>
+        <section class="panels">
+          <section id="ordersPanel" class="panel active">
+            <h2>Purchase Orders</h2>
+            <form id="purchaseOrderForm" class="form">
+              <label class="field">
+                <span>Client Name</span>
+                <input id="clientNameInput" type="text" required placeholder="Acme Industries" />
+              </label>
+              <label class="field">
+                <span>Contract Length (Months)</span>
+                <input id="contractLengthInput" type="number" required min="1" placeholder="12" />
+              </label>
+              <label class="field">
+                <span>Contract Value (SGD)</span>
+                <input id="contractValueInput" type="number" required min="1" step="1" placeholder="250000" />
+              </label>
+              <button type="submit" class="btn">Add Purchase Order</button>
+            </form>
+            <div id="purchaseOrderList" class="list"></div>
+          </section>
 
-      <section class="controls">
-        <label class="field">
-          <span>Client</span>
-          <select id="clientFilter" aria-label="Filter by client">
-            <option value="ALL">All clients</option>
-          </select>
-        </label>
-        <label class="field">
-          <span>Search</span>
-          <input
-            id="searchInput"
-            type="search"
-            placeholder="PO number, item, or approver"
-            aria-label="Search purchase orders"
-          />
-        </label>
-      </section>
+          <section id="invoicePanel" class="panel">
+            <h2>Invoices</h2>
+            <form id="invoiceForm" class="form">
+              <label class="field">
+                <span>Contract</span>
+                <select id="invoicePurchaseOrderSelect" required></select>
+              </label>
+              <label class="field">
+                <span>Progress Claim Amount (SGD)</span>
+                <input id="claimAmountInput" type="number" required min="1" step="1" placeholder="18000" />
+              </label>
+              <label class="field">
+                <span>Claim Date</span>
+                <input id="claimDateInput" type="date" required />
+              </label>
+              <button type="submit" class="btn">Add Invoice Claim</button>
+            </form>
+            <div id="invoiceList" class="list"></div>
+          </section>
+        </section>
 
-      <section class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>PO Number</th>
-              <th>Client</th>
-              <th>Item</th>
-              <th>Amount</th>
-              <th>Date</th>
-              <th>Status</th>
-              <th>Approver</th>
-            </tr>
-          </thead>
-          <tbody id="orderRows"></tbody>
-        </table>
-        <p id="emptyState" class="empty hidden">No purchase orders match your filter.</p>
+        <nav class="tabbar" aria-label="Primary Tabs">
+          <button id="ordersTab" class="tab active" type="button">Purchase Orders</button>
+          <button id="invoiceTab" class="tab" type="button">Invoices</button>
+        </nav>
       </section>
     </main>
 
