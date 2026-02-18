@@ -148,6 +148,12 @@ h2 {
   padding: 12px;
 }
 
+.order-tools {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
 .field {
   display: flex;
   flex-direction: column;

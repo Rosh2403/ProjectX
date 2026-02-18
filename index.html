@@ -23,10 +23,21 @@
         <section class="panels">
           <section id="ordersPanel" class="panel active">
             <h2>Purchase Orders</h2>
-            <label class="field">
-              <span>Search by Client or PO Number</span>
-              <input id="orderSearchInput" type="search" placeholder="Try Apex or PO-2026-001" />
-            </label>
+            <div class="order-tools">
+              <label class="field">
+                <span>Search by Client or PO Number</span>
+                <input id="orderSearchInput" type="search" placeholder="Try Apex or PO-2026-001" />
+              </label>
+              <label class="field">
+                <span>Sort</span>
+                <select id="orderSortSelect">
+                  <option value="company-asc">Company (A-Z)</option>
+                  <option value="company-desc">Company (Z-A)</option>
+                  <option value="date-desc">Sent Date (Newest)</option>
+                  <option value="date-asc">Sent Date (Oldest)</option>
+                </select>
+              </label>
+            </div>
             <div id="purchaseOrderList" class="list"></div>
           </section>
 

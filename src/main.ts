@@ -16,6 +16,7 @@ type InvoiceClaim = {
 };
 
 type TabName = "orders" | "createOrder" | "invoices";
+type OrderSortOption = "company-asc" | "company-desc" | "date-desc" | "date-asc";
 
 const purchaseOrders: PurchaseOrder[] = [
   { id: "PO-2026-001", clientName: "Apex Retail", contractLengthMonths: 12, contractValue: 120000, sentDate: "2026-01-12" },
@@ -37,6 +38,7 @@ const contractLengthInput = document.getElementById("contractLengthInput") as HT
 const contractValueInput = document.getElementById("contractValueInput") as HTMLInputElement;
 const orderSentDateInput = document.getElementById("orderSentDateInput") as HTMLInputElement;
 const orderSearchInput = document.getElementById("orderSearchInput") as HTMLInputElement;
+const orderSortSelect = document.getElementById("orderSortSelect") as HTMLSelectElement;
 
 const invoicePurchaseOrderSelect = document.getElementById("invoicePurchaseOrderSelect") as HTMLSelectElement;
 const claimAmountInput = document.getElementById("claimAmountInput") as HTMLInputElement;
@@ -126,12 +128,25 @@ function renderClientNameSuggestions(): void {
 
 function renderPurchaseOrders(): void {
   const query = orderSearchInput.value.trim().toLowerCase();
+  const sortOption = orderSortSelect.value as OrderSortOption;
   const filteredOrders = purchaseOrders.filter((order) => {
     if (!query) return true;
     return order.clientName.toLowerCase().includes(query) || order.id.toLowerCase().includes(query);
   });
+  const sortedOrders = [...filteredOrders].sort((a, b) => {
+    if (sortOption === "company-desc") {
+      return b.clientName.localeCompare(a.clientName);
+    }
+    if (sortOption === "date-desc") {
+      return b.sentDate.localeCompare(a.sentDate);
+    }
+    if (sortOption === "date-asc") {
+      return a.sentDate.localeCompare(b.sentDate);
+    }
+    return a.clientName.localeCompare(b.clientName);
+  });
 
-  purchaseOrderList.innerHTML = filteredOrders
+  purchaseOrderList.innerHTML = sortedOrders
     .map(
       (order) => `
       <article class="item-card">
@@ -156,7 +171,7 @@ function renderPurchaseOrders(): void {
     )
     .join("");
 
-  if (!filteredOrders.length) {
+  if (!sortedOrders.length) {
     purchaseOrderList.innerHTML = `<p class="empty">${purchaseOrders.length ? "No orders match your search." : "No purchase orders yet."}</p>`;
   }
 }
@@ -252,6 +267,7 @@ function init(): void {
   purchaseOrderForm.addEventListener("submit", onPurchaseOrderSubmit);
   invoiceForm.addEventListener("submit", onInvoiceSubmit);
   orderSearchInput.addEventListener("input", renderPurchaseOrders);
+  orderSortSelect.addEventListener("change", renderPurchaseOrders);
   ordersTab.addEventListener("click", () => setActiveTab("orders"));
   createOrderTab.addEventListener("click", () => setActiveTab("createOrder"));
   invoiceTab.addEventListener("click", () => setActiveTab("invoices"));
