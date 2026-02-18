@@ -184,6 +184,17 @@ input:focus {
   border-color: var(--accent);
 }
 
+.form-error {
+  margin: 2px 0 10px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid #f4b5b5;
+  background: #fff1f1;
+  color: #a22626;
+  font-size: 12px;
+  font-weight: 600;
+}
+
 .btn {
   width: 100%;
   border: 0;

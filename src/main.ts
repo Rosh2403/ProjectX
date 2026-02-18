@@ -43,6 +43,8 @@ const orderSortSelect = document.getElementById("orderSortSelect") as HTMLSelect
 const invoicePurchaseOrderSelect = document.getElementById("invoicePurchaseOrderSelect") as HTMLSelectElement;
 const claimAmountInput = document.getElementById("claimAmountInput") as HTMLInputElement;
 const claimDateInput = document.getElementById("claimDateInput") as HTMLInputElement;
+const purchaseOrderError = document.getElementById("purchaseOrderError") as HTMLParagraphElement;
+const invoiceError = document.getElementById("invoiceError") as HTMLParagraphElement;
 
 const purchaseOrderList = document.getElementById("purchaseOrderList") as HTMLDivElement;
 const invoiceList = document.getElementById("invoiceList") as HTMLDivElement;
@@ -87,6 +89,16 @@ function totalInvoicedForPurchaseOrder(purchaseOrderId: string): number {
   return invoiceClaims
     .filter((claim) => claim.purchaseOrderId === purchaseOrderId)
     .reduce((sum, claim) => sum + claim.amount, 0);
+}
+
+function setFormError(element: HTMLParagraphElement, message: string): void {
+  element.textContent = message;
+  element.classList.remove("hidden");
+}
+
+function clearFormError(element: HTMLParagraphElement): void {
+  element.textContent = "";
+  element.classList.add("hidden");
 }
 
 function renderHeaderMetrics(): void {
@@ -304,13 +316,24 @@ function createId(prefix: "PO" | "INV"): string {
 
 function onPurchaseOrderSubmit(event: SubmitEvent): void {
   event.preventDefault();
+  clearFormError(purchaseOrderError);
 
   const clientName = clientNameInput.value.trim();
   const contractLengthMonths = Number(contractLengthInput.value);
   const contractValue = Number(contractValueInput.value);
   const sentDate = orderSentDateInput.value;
+  const today = todayIso();
 
-  if (!clientName || contractLengthMonths <= 0 || contractValue <= 0 || !sentDate) {
+  if (!clientName || !sentDate || Number.isNaN(contractLengthMonths) || Number.isNaN(contractValue)) {
+    setFormError(purchaseOrderError, "Please complete all purchase order fields.");
+    return;
+  }
+  if (contractLengthMonths <= 0 || contractValue <= 0) {
+    setFormError(purchaseOrderError, "Contract length and value must be greater than 0.");
+    return;
+  }
+  if (sentDate > today) {
+    setFormError(purchaseOrderError, "Order sent date cannot be in the future.");
     return;
   }
 
@@ -330,12 +353,29 @@ function onPurchaseOrderSubmit(event: SubmitEvent): void {
 
 function onInvoiceSubmit(event: SubmitEvent): void {
   event.preventDefault();
+  clearFormError(invoiceError);
 
   const purchaseOrderId = invoicePurchaseOrderSelect.value;
   const amount = Number(claimAmountInput.value);
   const claimDate = claimDateInput.value;
+  const selectedPurchaseOrder = purchaseOrders.find((order) => order.id === purchaseOrderId);
 
-  if (!purchaseOrderId || amount <= 0 || !claimDate) {
+  if (!selectedPurchaseOrder || !claimDate || Number.isNaN(amount)) {
+    setFormError(invoiceError, "Please select a contract and complete all invoice fields.");
+    return;
+  }
+  if (amount <= 0) {
+    setFormError(invoiceError, "Progress claim amount must be greater than 0.");
+    return;
+  }
+
+  const remainingAmount = selectedPurchaseOrder.contractValue - totalInvoicedForPurchaseOrder(purchaseOrderId);
+  if (remainingAmount <= 0) {
+    setFormError(invoiceError, "This contract is already fully invoiced.");
+    return;
+  }
+  if (amount > remainingAmount) {
+    setFormError(invoiceError, `Claim exceeds remaining contract value (${currency.format(remainingAmount)} left).`);
     return;
   }
 
@@ -348,6 +388,7 @@ function onInvoiceSubmit(event: SubmitEvent): void {
 
   invoiceForm.reset();
   claimDateInput.value = todayIso();
+  clearFormError(invoiceError);
   refreshScreen();
 }
 
@@ -356,6 +397,13 @@ function init(): void {
   orderSentDateInput.value = todayIso();
   purchaseOrderForm.addEventListener("submit", onPurchaseOrderSubmit);
   invoiceForm.addEventListener("submit", onInvoiceSubmit);
+  clientNameInput.addEventListener("input", () => clearFormError(purchaseOrderError));
+  contractLengthInput.addEventListener("input", () => clearFormError(purchaseOrderError));
+  contractValueInput.addEventListener("input", () => clearFormError(purchaseOrderError));
+  orderSentDateInput.addEventListener("input", () => clearFormError(purchaseOrderError));
+  invoicePurchaseOrderSelect.addEventListener("change", () => clearFormError(invoiceError));
+  claimAmountInput.addEventListener("input", () => clearFormError(invoiceError));
+  claimDateInput.addEventListener("input", () => clearFormError(invoiceError));
   orderSearchInput.addEventListener("input", renderPurchaseOrders);
   orderSortSelect.addEventListener("change", renderPurchaseOrders);
   dashboardTab.addEventListener("click", () => setActiveTab("dashboard"));
