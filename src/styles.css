@@ -58,9 +58,16 @@ body {
   gap: 12px;
 }
 
+.top-head > div {
+  flex: 1;
+  min-width: 0;
+}
+
 .brand-logo {
   width: 72px;
   height: 72px;
+  flex-shrink: 0;
+  display: block;
   object-fit: cover;
   border-radius: 12px;
   border: 1px solid rgba(255, 255, 255, 0.45);
@@ -77,8 +84,9 @@ body {
 
 h1 {
   margin: 8px 0 6px;
-  font-size: 30px;
-  line-height: 1;
+  font-size: 28px;
+  line-height: 1.05;
+  word-break: break-word;
 }
 
 .subhead {
