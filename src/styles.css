@@ -110,6 +110,10 @@ h1 {
   padding: 10px;
 }
 
+.metric.small .metric-value {
+  font-size: 16px;
+}
+
 .metric-label {
   margin: 0;
   font-size: 11px;
@@ -203,11 +207,38 @@ input:focus {
   padding-bottom: 86px;
 }
 
+.list.compact {
+  margin-top: 8px;
+  padding-bottom: 0;
+}
+
+.section-title {
+  margin: 12px 0 0;
+  font-size: 15px;
+}
+
+.dashboard-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
 .item-card {
   border: 1px solid var(--line);
   border-radius: 14px;
   padding: 12px;
   background: #fff;
+}
+
+.item-card.row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.item-card.row .client,
+.item-card.row .money {
+  margin: 0;
 }
 
 .item-head {
@@ -276,7 +307,7 @@ input:focus {
   position: sticky;
   bottom: 0;
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 8px;
   border-top: 1px solid var(--line);
   background: #fff;

@@ -15,7 +15,7 @@ type InvoiceClaim = {
   claimDate: string;
 };
 
-type TabName = "orders" | "createOrder" | "invoices";
+type TabName = "dashboard" | "orders" | "createOrder" | "invoices";
 type OrderSortOption = "company-asc" | "company-desc" | "date-desc" | "date-asc";
 
 const purchaseOrders: PurchaseOrder[] = [
@@ -47,24 +47,33 @@ const claimDateInput = document.getElementById("claimDateInput") as HTMLInputEle
 const purchaseOrderList = document.getElementById("purchaseOrderList") as HTMLDivElement;
 const invoiceList = document.getElementById("invoiceList") as HTMLDivElement;
 const metricRow = document.getElementById("metricRow") as HTMLDivElement;
+const dashboardStats = document.getElementById("dashboardStats") as HTMLDivElement;
+const dashboardClientList = document.getElementById("dashboardClientList") as HTMLDivElement;
+const dashboardMonthlyList = document.getElementById("dashboardMonthlyList") as HTMLDivElement;
 
+const dashboardPanel = document.getElementById("dashboardPanel") as HTMLElement;
 const ordersPanel = document.getElementById("ordersPanel") as HTMLElement;
 const createOrderPanel = document.getElementById("createOrderPanel") as HTMLElement;
 const invoicePanel = document.getElementById("invoicePanel") as HTMLElement;
+const dashboardTab = document.getElementById("dashboardTab") as HTMLButtonElement;
 const ordersTab = document.getElementById("ordersTab") as HTMLButtonElement;
 const createOrderTab = document.getElementById("createOrderTab") as HTMLButtonElement;
 const invoiceTab = document.getElementById("invoiceTab") as HTMLButtonElement;
 
 const currency = new Intl.NumberFormat("en-SG", { style: "currency", currency: "SGD", maximumFractionDigits: 0 });
 const fullDate = new Intl.DateTimeFormat("en-US", { year: "numeric", month: "short", day: "2-digit" });
+const monthYear = new Intl.DateTimeFormat("en-US", { year: "numeric", month: "short" });
 
 function setActiveTab(tab: TabName): void {
+  const dashboardActive = tab === "dashboard";
   const ordersActive = tab === "orders";
   const createActive = tab === "createOrder";
   const invoiceActive = tab === "invoices";
+  dashboardTab.classList.toggle("active", dashboardActive);
   ordersTab.classList.toggle("active", ordersActive);
   createOrderTab.classList.toggle("active", createActive);
   invoiceTab.classList.toggle("active", invoiceActive);
+  dashboardPanel.classList.toggle("active", dashboardActive);
   ordersPanel.classList.toggle("active", ordersActive);
   createOrderPanel.classList.toggle("active", createActive);
   invoicePanel.classList.toggle("active", invoiceActive);
@@ -200,8 +209,89 @@ function renderInvoiceClaims(): void {
   }
 }
 
+function renderDashboard(): void {
+  const totalContractValue = purchaseOrders.reduce((sum, order) => sum + order.contractValue, 0);
+  const totalInvoiced = invoiceClaims.reduce((sum, claim) => sum + claim.amount, 0);
+  const completionPct = totalContractValue ? Math.round((totalInvoiced / totalContractValue) * 100) : 0;
+
+  dashboardStats.innerHTML = [
+    { label: "Active Clients", value: String(new Set(purchaseOrders.map((order) => order.clientName)).size) },
+    { label: "Total Orders", value: String(purchaseOrders.length) },
+    { label: "Avg Contract", value: currency.format(purchaseOrders.length ? Math.round(totalContractValue / purchaseOrders.length) : 0) },
+    { label: "Completion", value: `${completionPct}%` },
+  ]
+    .map(
+      (metric) => `
+      <article class="metric small">
+        <p class="metric-label">${metric.label}</p>
+        <p class="metric-value">${metric.value}</p>
+      </article>
+      `
+    )
+    .join("");
+
+  const clientSummary = [...new Set(purchaseOrders.map((order) => order.clientName))]
+    .map((clientName) => {
+      const contracts = purchaseOrders.filter((order) => order.clientName === clientName);
+      const clientContractValue = contracts.reduce((sum, order) => sum + order.contractValue, 0);
+      const clientInvoiced = contracts.reduce((sum, order) => sum + totalInvoicedForPurchaseOrder(order.id), 0);
+      return {
+        clientName,
+        contracts: contracts.length,
+        contractValue: clientContractValue,
+        invoiced: clientInvoiced,
+        remaining: Math.max(clientContractValue - clientInvoiced, 0),
+      };
+    })
+    .sort((a, b) => a.clientName.localeCompare(b.clientName));
+
+  dashboardClientList.innerHTML = clientSummary
+    .map(
+      (client) => `
+      <article class="item-card">
+        <div class="item-head">
+          <h3>${client.clientName}</h3>
+          <span>${client.contracts} contract${client.contracts > 1 ? "s" : ""}</span>
+        </div>
+        <p class="meta">Contract Value: ${currency.format(client.contractValue)}</p>
+        <p class="meta">Invoiced: ${currency.format(client.invoiced)}</p>
+        <p class="meta">Remaining: ${currency.format(client.remaining)}</p>
+      </article>
+      `
+    )
+    .join("");
+
+  if (!clientSummary.length) {
+    dashboardClientList.innerHTML = `<p class="empty">No client data yet.</p>`;
+  }
+
+  const monthlySummaryMap = new Map<string, number>();
+  invoiceClaims.forEach((claim) => {
+    const monthKey = claim.claimDate.slice(0, 7);
+    monthlySummaryMap.set(monthKey, (monthlySummaryMap.get(monthKey) ?? 0) + claim.amount);
+  });
+  const monthlySummary = [...monthlySummaryMap.entries()].sort((a, b) => b[0].localeCompare(a[0]));
+
+  dashboardMonthlyList.innerHTML = monthlySummary
+    .map(([month, total]) => {
+      const monthLabel = monthYear.format(new Date(`${month}-01`));
+      return `
+        <article class="item-card row">
+          <p class="client">${monthLabel}</p>
+          <p class="money">${currency.format(total)}</p>
+        </article>
+      `;
+    })
+    .join("");
+
+  if (!monthlySummary.length) {
+    dashboardMonthlyList.innerHTML = `<p class="empty">No invoice claims yet.</p>`;
+  }
+}
+
 function refreshScreen(): void {
   renderHeaderMetrics();
+  renderDashboard();
   renderClientNameSuggestions();
   renderInvoicePurchaseOrderOptions();
   renderPurchaseOrders();
@@ -268,11 +358,12 @@ function init(): void {
   invoiceForm.addEventListener("submit", onInvoiceSubmit);
   orderSearchInput.addEventListener("input", renderPurchaseOrders);
   orderSortSelect.addEventListener("change", renderPurchaseOrders);
+  dashboardTab.addEventListener("click", () => setActiveTab("dashboard"));
   ordersTab.addEventListener("click", () => setActiveTab("orders"));
   createOrderTab.addEventListener("click", () => setActiveTab("createOrder"));
   invoiceTab.addEventListener("click", () => setActiveTab("invoices"));
   refreshScreen();
-  setActiveTab("orders");
+  setActiveTab("dashboard");
 }
 
 init();
