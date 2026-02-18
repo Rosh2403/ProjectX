@@ -32,6 +32,7 @@ const purchaseOrderForm = document.getElementById("purchaseOrderForm") as HTMLFo
 const invoiceForm = document.getElementById("invoiceForm") as HTMLFormElement;
 
 const clientNameInput = document.getElementById("clientNameInput") as HTMLInputElement;
+const clientNameSuggestions = document.getElementById("clientNameSuggestions") as HTMLDataListElement;
 const contractLengthInput = document.getElementById("contractLengthInput") as HTMLInputElement;
 const contractValueInput = document.getElementById("contractValueInput") as HTMLInputElement;
 
@@ -102,6 +103,19 @@ function renderInvoicePurchaseOrderOptions(): void {
   invoicePurchaseOrderSelect.disabled = purchaseOrders.length === 0;
 }
 
+function renderClientNameSuggestions(): void {
+  const uniqueClientNames = [...new Set(purchaseOrders.map((order) => order.clientName.trim()))]
+    .filter((name) => name.length > 0)
+    .sort((a, b) => a.localeCompare(b));
+
+  clientNameSuggestions.innerHTML = "";
+  uniqueClientNames.forEach((name) => {
+    const option = document.createElement("option");
+    option.value = name;
+    clientNameSuggestions.appendChild(option);
+  });
+}
+
 function renderPurchaseOrders(): void {
   purchaseOrderList.innerHTML = purchaseOrders
     .map(
@@ -159,6 +173,7 @@ function renderInvoiceClaims(): void {
 
 function refreshScreen(): void {
   renderHeaderMetrics();
+  renderClientNameSuggestions();
   renderInvoicePurchaseOrderOptions();
   renderPurchaseOrders();
   renderInvoiceClaims();

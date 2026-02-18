@@ -26,7 +26,15 @@
             <form id="purchaseOrderForm" class="form">
               <label class="field">
                 <span>Client Name</span>
-                <input id="clientNameInput" type="text" required placeholder="Acme Industries" />
+                <input
+                  id="clientNameInput"
+                  type="text"
+                  required
+                  placeholder="Acme Industries"
+                  list="clientNameSuggestions"
+                  autocomplete="off"
+                />
+                <datalist id="clientNameSuggestions"></datalist>
               </label>
               <label class="field">
                 <span>Contract Length (Months)</span>
