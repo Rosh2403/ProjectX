@@ -1,3 +1,4 @@
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import "./styles.css";
 
 type PurchaseOrder = {
@@ -15,19 +16,43 @@ type InvoiceClaim = {
   claimDate: string;
 };
 
+type PurchaseOrderRow = {
+  id: string;
+  client_name: string;
+  contract_length_months: number;
+  contract_value: number;
+  sent_date: string;
+};
+
+type InvoiceClaimRow = {
+  id: string;
+  purchase_order_id: string;
+  amount: number;
+  claim_date: string;
+};
+
 type TabName = "dashboard" | "orders" | "createOrder" | "invoices" | "reports";
 type OrderSortOption = "company-asc" | "company-desc" | "date-desc" | "date-asc";
 
-const purchaseOrders: PurchaseOrder[] = [
+const localSeedPurchaseOrders: PurchaseOrder[] = [
   { id: "PO-2026-001", clientName: "Apex Retail", contractLengthMonths: 12, contractValue: 120000, sentDate: "2026-01-12" },
   { id: "PO-2026-002", clientName: "Northstar Labs", contractLengthMonths: 8, contractValue: 84000, sentDate: "2026-01-24" },
 ];
 
-const invoiceClaims: InvoiceClaim[] = [
+const localSeedInvoiceClaims: InvoiceClaim[] = [
   { id: "INV-001", purchaseOrderId: "PO-2026-001", amount: 23000, claimDate: "2026-02-01" },
   { id: "INV-002", purchaseOrderId: "PO-2026-001", amount: 18000, claimDate: "2026-02-15" },
   { id: "INV-003", purchaseOrderId: "PO-2026-002", amount: 20000, claimDate: "2026-02-09" },
 ];
+
+let purchaseOrders: PurchaseOrder[] = [...localSeedPurchaseOrders];
+let invoiceClaims: InvoiceClaim[] = [...localSeedInvoiceClaims];
+
+const env = (import.meta as ImportMeta & { env: Record<string, string | undefined> }).env;
+const supabaseUrl = env.VITE_SUPABASE_URL;
+const supabaseAnonKey = env.VITE_SUPABASE_ANON_KEY;
+const supabase: SupabaseClient | null =
+  supabaseUrl && supabaseAnonKey ? createClient(supabaseUrl, supabaseAnonKey) : null;
 
 const purchaseOrderForm = document.getElementById("purchaseOrderForm") as HTMLFormElement;
 const invoiceForm = document.getElementById("invoiceForm") as HTMLFormElement;
@@ -52,6 +77,7 @@ const metricRow = document.getElementById("metricRow") as HTMLDivElement;
 const dashboardStats = document.getElementById("dashboardStats") as HTMLDivElement;
 const dashboardClientList = document.getElementById("dashboardClientList") as HTMLDivElement;
 const dashboardMonthlyList = document.getElementById("dashboardMonthlyList") as HTMLDivElement;
+const dataStatus = document.getElementById("dataStatus") as HTMLParagraphElement;
 
 const dashboardPanel = document.getElementById("dashboardPanel") as HTMLElement;
 const ordersPanel = document.getElementById("ordersPanel") as HTMLElement;
@@ -70,6 +96,18 @@ const exportClientSummaryBtn = document.getElementById("exportClientSummaryBtn")
 const currency = new Intl.NumberFormat("en-SG", { style: "currency", currency: "SGD", maximumFractionDigits: 0 });
 const fullDate = new Intl.DateTimeFormat("en-US", { year: "numeric", month: "short", day: "2-digit" });
 const monthYear = new Intl.DateTimeFormat("en-US", { year: "numeric", month: "short" });
+
+function setDataStatus(message: string, tone: "ok" | "warn" | "error"): void {
+  dataStatus.textContent = message;
+  dataStatus.classList.remove("hidden", "status-ok", "status-warn", "status-error");
+  dataStatus.classList.add(`status-${tone}`);
+}
+
+function clearDataStatus(): void {
+  dataStatus.textContent = "";
+  dataStatus.classList.add("hidden");
+  dataStatus.classList.remove("status-ok", "status-warn", "status-error");
+}
 
 function setActiveTab(tab: TabName): void {
   const dashboardActive = tab === "dashboard";
@@ -135,6 +173,42 @@ function downloadFile(filename: string, content: string, mimeType: string): void
   anchor.click();
   anchor.remove();
   URL.revokeObjectURL(url);
+}
+
+async function loadFromSupabase(): Promise<void> {
+  if (!supabase) {
+    setDataStatus("Supabase not configured. Running in local demo mode.", "warn");
+    return;
+  }
+
+  const [purchaseOrdersResult, invoiceClaimsResult] = await Promise.all([
+    supabase.from("purchase_orders").select("*").order("sent_date", { ascending: false }),
+    supabase.from("invoice_claims").select("*").order("claim_date", { ascending: false }),
+  ]);
+
+  if (purchaseOrdersResult.error) {
+    throw purchaseOrdersResult.error;
+  }
+  if (invoiceClaimsResult.error) {
+    throw invoiceClaimsResult.error;
+  }
+
+  purchaseOrders = ((purchaseOrdersResult.data ?? []) as PurchaseOrderRow[]).map((row) => ({
+    id: row.id,
+    clientName: row.client_name,
+    contractLengthMonths: Number(row.contract_length_months),
+    contractValue: Number(row.contract_value),
+    sentDate: row.sent_date,
+  }));
+
+  invoiceClaims = ((invoiceClaimsResult.data ?? []) as InvoiceClaimRow[]).map((row) => ({
+    id: row.id,
+    purchaseOrderId: row.purchase_order_id,
+    amount: Number(row.amount),
+    claimDate: row.claim_date,
+  }));
+
+  setDataStatus("Connected to Supabase.", "ok");
 }
 
 function renderHeaderMetrics(): void {
@@ -397,7 +471,7 @@ function createId(prefix: "PO" | "INV"): string {
   return `${prefix}-${Date.now().toString().slice(-6)}`;
 }
 
-function onPurchaseOrderSubmit(event: SubmitEvent): void {
+async function onPurchaseOrderSubmit(event: SubmitEvent): Promise<void> {
   event.preventDefault();
   clearFormError(purchaseOrderError);
 
@@ -420,21 +494,36 @@ function onPurchaseOrderSubmit(event: SubmitEvent): void {
     return;
   }
 
-  purchaseOrders.unshift({
+  const newOrder: PurchaseOrder = {
     id: createId("PO"),
     clientName,
     contractLengthMonths,
     contractValue,
     sentDate,
-  });
+  };
 
+  if (supabase) {
+    const { error } = await supabase.from("purchase_orders").insert({
+      id: newOrder.id,
+      client_name: newOrder.clientName,
+      contract_length_months: newOrder.contractLengthMonths,
+      contract_value: newOrder.contractValue,
+      sent_date: newOrder.sentDate,
+    });
+    if (error) {
+      setFormError(purchaseOrderError, `Could not save purchase order: ${error.message}`);
+      return;
+    }
+  }
+
+  purchaseOrders.unshift(newOrder);
   purchaseOrderForm.reset();
   orderSentDateInput.value = todayIso();
   refreshScreen();
   setActiveTab("orders");
 }
 
-function onInvoiceSubmit(event: SubmitEvent): void {
+async function onInvoiceSubmit(event: SubmitEvent): Promise<void> {
   event.preventDefault();
   clearFormError(invoiceError);
 
@@ -462,24 +551,44 @@ function onInvoiceSubmit(event: SubmitEvent): void {
     return;
   }
 
-  invoiceClaims.unshift({
+  const newClaim: InvoiceClaim = {
     id: createId("INV"),
     purchaseOrderId,
     amount,
     claimDate,
-  });
+  };
 
+  if (supabase) {
+    const { error } = await supabase.from("invoice_claims").insert({
+      id: newClaim.id,
+      purchase_order_id: newClaim.purchaseOrderId,
+      amount: newClaim.amount,
+      claim_date: newClaim.claimDate,
+    });
+    if (error) {
+      setFormError(invoiceError, `Could not save invoice claim: ${error.message}`);
+      return;
+    }
+  }
+
+  invoiceClaims.unshift(newClaim);
   invoiceForm.reset();
   claimDateInput.value = todayIso();
   clearFormError(invoiceError);
   refreshScreen();
 }
 
-function init(): void {
+async function init(): Promise<void> {
   claimDateInput.value = todayIso();
   orderSentDateInput.value = todayIso();
-  purchaseOrderForm.addEventListener("submit", onPurchaseOrderSubmit);
-  invoiceForm.addEventListener("submit", onInvoiceSubmit);
+
+  purchaseOrderForm.addEventListener("submit", (event) => {
+    void onPurchaseOrderSubmit(event);
+  });
+  invoiceForm.addEventListener("submit", (event) => {
+    void onInvoiceSubmit(event);
+  });
+
   clientNameInput.addEventListener("input", () => clearFormError(purchaseOrderError));
   contractLengthInput.addEventListener("input", () => clearFormError(purchaseOrderError));
   contractValueInput.addEventListener("input", () => clearFormError(purchaseOrderError));
@@ -497,8 +606,19 @@ function init(): void {
   exportOrdersBtn.addEventListener("click", exportOrdersCsv);
   exportInvoicesBtn.addEventListener("click", exportInvoicesCsv);
   exportClientSummaryBtn.addEventListener("click", exportClientSummaryCsv);
+
+  try {
+    await loadFromSupabase();
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown error";
+    setDataStatus(`Supabase connection failed. Using local demo data. (${message})`, "error");
+  }
+
   refreshScreen();
+  if (!supabase && !dataStatus.textContent) {
+    clearDataStatus();
+  }
   setActiveTab("dashboard");
 }
 
-init();
+void init();

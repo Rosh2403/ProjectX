@@ -1,20 +1,32 @@
-# ProjectX Purchase Order Frontend
+# ProjectX Invoice Reconciliation
 
-Frontend dashboard to view incoming purchase orders and filter by client name.
+Frontend app for purchase orders, invoicing, dashboard analytics, and CSV reporting.
 
-## Features
-- Purchase-order table with PO number, client, item, amount, date, status, approver
-- Filter by client via dropdown
-- Instant search across PO number, item, approver, and client
-- Live summary cards for visible orders
-
-## Tech
+## Stack
 - TypeScript
 - Vite
+- Supabase (`@supabase/supabase-js`)
+
+## Setup
+1. Install dependencies:
+```bash
+npm install
+```
+
+2. Create local env file:
+```bash
+cp .env.example .env.local
+```
+
+3. Fill Supabase values in `.env.local`:
+- `VITE_SUPABASE_URL`
+- `VITE_SUPABASE_ANON_KEY`
+
+4. In Supabase SQL editor, run:
+- `supabase/schema.sql`
 
 ## Run
 ```bash
-npm install
 npm run dev
 ```
 
@@ -23,3 +35,7 @@ npm run dev
 npm run build
 npm run preview
 ```
+
+## Notes
+- If Supabase env vars are missing, the app falls back to local demo data.
+- When Supabase is configured, purchase orders and invoice claims are loaded/saved to Supabase tables.
