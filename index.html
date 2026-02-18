@@ -102,6 +102,18 @@
             </form>
             <div id="invoiceList" class="list"></div>
           </section>
+
+          <section id="reportsPanel" class="panel">
+            <h2>Export & Reporting</h2>
+            <div class="form report-block">
+              <p class="report-text">Download CSV reports for finance reconciliation.</p>
+              <div class="report-actions">
+                <button id="exportOrdersBtn" class="btn btn-secondary" type="button">Export Purchase Orders CSV</button>
+                <button id="exportInvoicesBtn" class="btn btn-secondary" type="button">Export Invoices CSV</button>
+                <button id="exportClientSummaryBtn" class="btn btn-secondary" type="button">Export Client Summary CSV</button>
+              </div>
+            </div>
+          </section>
         </section>
 
         <nav class="tabbar" aria-label="Primary Tabs">
@@ -109,6 +121,7 @@
           <button id="ordersTab" class="tab" type="button">Purchase Orders</button>
           <button id="createOrderTab" class="tab" type="button">Create PO</button>
           <button id="invoiceTab" class="tab" type="button">Invoices</button>
+          <button id="reportsTab" class="tab" type="button">Reports</button>
         </nav>
       </section>
     </main>
