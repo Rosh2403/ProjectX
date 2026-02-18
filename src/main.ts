@@ -283,7 +283,10 @@ function renderPurchaseOrders(): void {
       <article class="item-card">
         <div class="item-head">
           <h3>${order.id}</h3>
-          <span>Sent ${fullDate.format(new Date(order.sentDate))}</span>
+          <div class="item-head-right">
+            <span>Sent ${fullDate.format(new Date(order.sentDate))}</span>
+            <button class="edit-card-btn" type="button" data-po-id="${order.id}">Edit</button>
+          </div>
         </div>
         <p class="client">${order.clientName}</p>
         <p class="meta">${order.contractLengthMonths} months contract</p>
@@ -316,7 +319,10 @@ function renderInvoiceClaims(): void {
         <article class="item-card">
           <div class="item-head">
             <h3>${claim.id}</h3>
-            <span>${fullDate.format(new Date(claim.claimDate))}</span>
+            <div class="item-head-right">
+              <span>${fullDate.format(new Date(claim.claimDate))}</span>
+              <button class="edit-card-btn" type="button" data-invoice-id="${claim.id}">Edit</button>
+            </div>
           </div>
           <p class="client">${order ? `${order.clientName} (${order.id})` : claim.purchaseOrderId}</p>
           <p class="money">${currency.format(claim.amount)}</p>
@@ -456,6 +462,147 @@ function exportClientSummaryCsv(): void {
     ...buildClientSummaryRows(),
   ];
   downloadFile(`client-summary-${todayIso()}.csv`, toCsv(rows), "text/csv;charset=utf-8;");
+}
+
+function isValidIsoDate(value: string): boolean {
+  return /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(Date.parse(value));
+}
+
+async function editPurchaseOrderById(orderId: string): Promise<void> {
+  const order = purchaseOrders.find((entry) => entry.id === orderId);
+  if (!order) return;
+
+  const nextClientName = window.prompt("Client name", order.clientName);
+  if (nextClientName === null) return;
+  const clientName = nextClientName.trim();
+  if (!clientName) {
+    window.alert("Client name cannot be empty.");
+    return;
+  }
+
+  const nextLengthRaw = window.prompt("Contract length (months)", String(order.contractLengthMonths));
+  if (nextLengthRaw === null) return;
+  const contractLengthMonths = Number(nextLengthRaw);
+  if (!Number.isInteger(contractLengthMonths) || contractLengthMonths <= 0) {
+    window.alert("Contract length must be a positive whole number.");
+    return;
+  }
+
+  const nextValueRaw = window.prompt("Contract value (SGD)", String(order.contractValue));
+  if (nextValueRaw === null) return;
+  const contractValue = Number(nextValueRaw);
+  if (Number.isNaN(contractValue) || contractValue <= 0) {
+    window.alert("Contract value must be greater than 0.");
+    return;
+  }
+
+  const alreadyInvoiced = totalInvoicedForPurchaseOrder(order.id);
+  if (contractValue < alreadyInvoiced) {
+    window.alert(`Contract value cannot be below invoiced total (${currency.format(alreadyInvoiced)}).`);
+    return;
+  }
+
+  const nextSentDate = window.prompt("Order sent date (YYYY-MM-DD)", order.sentDate);
+  if (nextSentDate === null) return;
+  const sentDate = nextSentDate.trim();
+  if (!isValidIsoDate(sentDate)) {
+    window.alert("Sent date must be in YYYY-MM-DD format.");
+    return;
+  }
+  if (sentDate > todayIso()) {
+    window.alert("Order sent date cannot be in the future.");
+    return;
+  }
+
+  if (supabase) {
+    const { error } = await supabase
+      .from("purchase_orders")
+      .update({
+        client_name: clientName,
+        contract_length_months: contractLengthMonths,
+        contract_value: contractValue,
+        sent_date: sentDate,
+      })
+      .eq("id", order.id);
+    if (error) {
+      window.alert(`Could not update purchase order: ${error.message}`);
+      return;
+    }
+  }
+
+  order.clientName = clientName;
+  order.contractLengthMonths = contractLengthMonths;
+  order.contractValue = contractValue;
+  order.sentDate = sentDate;
+  refreshScreen();
+}
+
+async function editInvoiceById(invoiceId: string): Promise<void> {
+  const claim = invoiceClaims.find((entry) => entry.id === invoiceId);
+  if (!claim) return;
+  const order = purchaseOrders.find((entry) => entry.id === claim.purchaseOrderId);
+  if (!order) return;
+
+  const maxAllowedAmount = order.contractValue - (totalInvoicedForPurchaseOrder(order.id) - claim.amount);
+  const nextAmountRaw = window.prompt(
+    `Claim amount (SGD). Max allowed: ${currency.format(maxAllowedAmount)}`,
+    String(claim.amount)
+  );
+  if (nextAmountRaw === null) return;
+  const amount = Number(nextAmountRaw);
+  if (Number.isNaN(amount) || amount <= 0) {
+    window.alert("Claim amount must be greater than 0.");
+    return;
+  }
+  if (amount > maxAllowedAmount) {
+    window.alert(`Claim cannot exceed ${currency.format(maxAllowedAmount)} for this contract.`);
+    return;
+  }
+
+  const nextDate = window.prompt("Claim date (YYYY-MM-DD)", claim.claimDate);
+  if (nextDate === null) return;
+  const claimDate = nextDate.trim();
+  if (!isValidIsoDate(claimDate)) {
+    window.alert("Claim date must be in YYYY-MM-DD format.");
+    return;
+  }
+  if (claimDate > todayIso()) {
+    window.alert("Claim date cannot be in the future.");
+    return;
+  }
+
+  if (supabase) {
+    const { error } = await supabase
+      .from("invoice_claims")
+      .update({ amount, claim_date: claimDate })
+      .eq("id", claim.id);
+    if (error) {
+      window.alert(`Could not update invoice claim: ${error.message}`);
+      return;
+    }
+  }
+
+  claim.amount = amount;
+  claim.claimDate = claimDate;
+  refreshScreen();
+}
+
+async function onPurchaseOrderListClick(event: MouseEvent): Promise<void> {
+  const target = event.target as HTMLElement | null;
+  const button = target?.closest<HTMLButtonElement>("[data-po-id]");
+  if (!button) return;
+  const orderId = button.dataset.poId;
+  if (!orderId) return;
+  await editPurchaseOrderById(orderId);
+}
+
+async function onInvoiceListClick(event: MouseEvent): Promise<void> {
+  const target = event.target as HTMLElement | null;
+  const button = target?.closest<HTMLButtonElement>("[data-invoice-id]");
+  if (!button) return;
+  const invoiceId = button.dataset.invoiceId;
+  if (!invoiceId) return;
+  await editInvoiceById(invoiceId);
 }
 
 function refreshScreen(): void {
@@ -606,6 +753,12 @@ async function init(): Promise<void> {
   exportOrdersBtn.addEventListener("click", exportOrdersCsv);
   exportInvoicesBtn.addEventListener("click", exportInvoicesCsv);
   exportClientSummaryBtn.addEventListener("click", exportClientSummaryCsv);
+  purchaseOrderList.addEventListener("click", (event) => {
+    void onPurchaseOrderListClick(event);
+  });
+  invoiceList.addEventListener("click", (event) => {
+    void onInvoiceListClick(event);
+  });
 
   try {
     await loadFromSupabase();
