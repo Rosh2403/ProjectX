@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ProjectX Purchase Orders</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="hero">
+        <div>
+          <p class="eyebrow">ProjectX</p>
+          <h1>Purchase Order Console</h1>
+          <p class="subhead">
+            Centralized view for leadership to monitor all incoming purchase orders.
+          </p>
+        </div>
+      </header>
+
+      <section class="stats" id="stats"></section>
+
+      <section class="controls">
+        <label class="field">
+          <span>Client</span>
+          <select id="clientFilter" aria-label="Filter by client">
+            <option value="ALL">All clients</option>
+          </select>
+        </label>
+        <label class="field">
+          <span>Search</span>
+          <input
+            id="searchInput"
+            type="search"
+            placeholder="PO number, item, or approver"
+            aria-label="Search purchase orders"
+          />
+        </label>
+      </section>
+
+      <section class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>PO Number</th>
+              <th>Client</th>
+              <th>Item</th>
+              <th>Amount</th>
+              <th>Date</th>
+              <th>Status</th>
+              <th>Approver</th>
+            </tr>
+          </thead>
+          <tbody id="orderRows"></tbody>
+        </table>
+        <p id="emptyState" class="empty hidden">No purchase orders match your filter.</p>
+      </section>
+    </main>
+
+    <script src="./app.js"></script>
+  </body>
+</html>
