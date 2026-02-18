@@ -15,7 +15,7 @@ type InvoiceClaim = {
   claimDate: string;
 };
 
-type TabName = "dashboard" | "orders" | "createOrder" | "invoices";
+type TabName = "dashboard" | "orders" | "createOrder" | "invoices" | "reports";
 type OrderSortOption = "company-asc" | "company-desc" | "date-desc" | "date-asc";
 
 const purchaseOrders: PurchaseOrder[] = [
@@ -52,15 +52,22 @@ const metricRow = document.getElementById("metricRow") as HTMLDivElement;
 const dashboardStats = document.getElementById("dashboardStats") as HTMLDivElement;
 const dashboardClientList = document.getElementById("dashboardClientList") as HTMLDivElement;
 const dashboardMonthlyList = document.getElementById("dashboardMonthlyList") as HTMLDivElement;
+const reportSnapshot = document.getElementById("reportSnapshot") as HTMLPreElement;
 
 const dashboardPanel = document.getElementById("dashboardPanel") as HTMLElement;
 const ordersPanel = document.getElementById("ordersPanel") as HTMLElement;
 const createOrderPanel = document.getElementById("createOrderPanel") as HTMLElement;
 const invoicePanel = document.getElementById("invoicePanel") as HTMLElement;
+const reportsPanel = document.getElementById("reportsPanel") as HTMLElement;
 const dashboardTab = document.getElementById("dashboardTab") as HTMLButtonElement;
 const ordersTab = document.getElementById("ordersTab") as HTMLButtonElement;
 const createOrderTab = document.getElementById("createOrderTab") as HTMLButtonElement;
 const invoiceTab = document.getElementById("invoiceTab") as HTMLButtonElement;
+const reportsTab = document.getElementById("reportsTab") as HTMLButtonElement;
+const exportOrdersBtn = document.getElementById("exportOrdersBtn") as HTMLButtonElement;
+const exportInvoicesBtn = document.getElementById("exportInvoicesBtn") as HTMLButtonElement;
+const exportClientSummaryBtn = document.getElementById("exportClientSummaryBtn") as HTMLButtonElement;
+const downloadSnapshotBtn = document.getElementById("downloadSnapshotBtn") as HTMLButtonElement;
 
 const currency = new Intl.NumberFormat("en-SG", { style: "currency", currency: "SGD", maximumFractionDigits: 0 });
 const fullDate = new Intl.DateTimeFormat("en-US", { year: "numeric", month: "short", day: "2-digit" });
@@ -71,14 +78,17 @@ function setActiveTab(tab: TabName): void {
   const ordersActive = tab === "orders";
   const createActive = tab === "createOrder";
   const invoiceActive = tab === "invoices";
+  const reportsActive = tab === "reports";
   dashboardTab.classList.toggle("active", dashboardActive);
   ordersTab.classList.toggle("active", ordersActive);
   createOrderTab.classList.toggle("active", createActive);
   invoiceTab.classList.toggle("active", invoiceActive);
+  reportsTab.classList.toggle("active", reportsActive);
   dashboardPanel.classList.toggle("active", dashboardActive);
   ordersPanel.classList.toggle("active", ordersActive);
   createOrderPanel.classList.toggle("active", createActive);
   invoicePanel.classList.toggle("active", invoiceActive);
+  reportsPanel.classList.toggle("active", reportsActive);
 }
 
 function todayIso(): string {
@@ -99,6 +109,34 @@ function setFormError(element: HTMLParagraphElement, message: string): void {
 function clearFormError(element: HTMLParagraphElement): void {
   element.textContent = "";
   element.classList.add("hidden");
+}
+
+function toCsv(rows: Array<Array<string | number>>): string {
+  return rows
+    .map((row) =>
+      row
+        .map((cell) => {
+          const safe = String(cell ?? "");
+          if (safe.includes(",") || safe.includes("\"") || safe.includes("\n")) {
+            return `"${safe.replace(/"/g, "\"\"")}"`;
+          }
+          return safe;
+        })
+        .join(",")
+    )
+    .join("\n");
+}
+
+function downloadFile(filename: string, content: string, mimeType: string): void {
+  const blob = new Blob([content], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
 }
 
 function renderHeaderMetrics(): void {
@@ -301,6 +339,79 @@ function renderDashboard(): void {
   }
 }
 
+function buildClientSummaryRows(): Array<Array<string | number>> {
+  return [...new Set(purchaseOrders.map((order) => order.clientName))]
+    .sort((a, b) => a.localeCompare(b))
+    .map((clientName) => {
+      const contracts = purchaseOrders.filter((order) => order.clientName === clientName);
+      const contractValue = contracts.reduce((sum, order) => sum + order.contractValue, 0);
+      const invoiced = contracts.reduce((sum, order) => sum + totalInvoicedForPurchaseOrder(order.id), 0);
+      const remaining = Math.max(contractValue - invoiced, 0);
+      return [clientName, contracts.length, contractValue, invoiced, remaining];
+    });
+}
+
+function buildSnapshotText(): string {
+  const totalContractValue = purchaseOrders.reduce((sum, order) => sum + order.contractValue, 0);
+  const totalInvoiced = invoiceClaims.reduce((sum, claim) => sum + claim.amount, 0);
+  const remaining = Math.max(totalContractValue - totalInvoiced, 0);
+
+  return [
+    `Joe Tech Engineering Report Snapshot`,
+    `Generated: ${new Date().toLocaleString("en-SG")}`,
+    ``,
+    `Contracts: ${purchaseOrders.length}`,
+    `Total Contract Value: ${currency.format(totalContractValue)}`,
+    `Total Invoiced: ${currency.format(totalInvoiced)}`,
+    `Remaining: ${currency.format(remaining)}`,
+    ``,
+    `Top Clients by Contract Value:`,
+    ...buildClientSummaryRows()
+      .sort((a, b) => Number(b[2]) - Number(a[2]))
+      .slice(0, 5)
+      .map((row, index) => `${index + 1}. ${row[0]} - ${currency.format(Number(row[2]))} (Invoiced: ${currency.format(Number(row[3]))})`),
+  ].join("\n");
+}
+
+function exportOrdersCsv(): void {
+  const rows: Array<Array<string | number>> = [
+    ["PO Number", "Client Name", "Contract Length (Months)", "Contract Value (SGD)", "Order Sent Date", "Invoiced (SGD)", "Remaining (SGD)"],
+    ...purchaseOrders.map((order) => [
+      order.id,
+      order.clientName,
+      order.contractLengthMonths,
+      order.contractValue,
+      order.sentDate,
+      totalInvoicedForPurchaseOrder(order.id),
+      Math.max(order.contractValue - totalInvoicedForPurchaseOrder(order.id), 0),
+    ]),
+  ];
+  downloadFile(`purchase-orders-${todayIso()}.csv`, toCsv(rows), "text/csv;charset=utf-8;");
+}
+
+function exportInvoicesCsv(): void {
+  const rows: Array<Array<string | number>> = [
+    ["Invoice ID", "PO Number", "Client Name", "Claim Amount (SGD)", "Claim Date"],
+    ...invoiceClaims.map((claim) => {
+      const order = purchaseOrders.find((entry) => entry.id === claim.purchaseOrderId);
+      return [claim.id, claim.purchaseOrderId, order?.clientName ?? "Unknown", claim.amount, claim.claimDate];
+    }),
+  ];
+  downloadFile(`invoice-claims-${todayIso()}.csv`, toCsv(rows), "text/csv;charset=utf-8;");
+}
+
+function exportClientSummaryCsv(): void {
+  const rows: Array<Array<string | number>> = [
+    ["Client Name", "Contracts", "Contract Value (SGD)", "Invoiced (SGD)", "Remaining (SGD)"],
+    ...buildClientSummaryRows(),
+  ];
+  downloadFile(`client-summary-${todayIso()}.csv`, toCsv(rows), "text/csv;charset=utf-8;");
+}
+
+function renderReportSnapshot(): void {
+  reportSnapshot.textContent = buildSnapshotText();
+}
+
 function refreshScreen(): void {
   renderHeaderMetrics();
   renderDashboard();
@@ -308,6 +419,7 @@ function refreshScreen(): void {
   renderInvoicePurchaseOrderOptions();
   renderPurchaseOrders();
   renderInvoiceClaims();
+  renderReportSnapshot();
 }
 
 function createId(prefix: "PO" | "INV"): string {
@@ -410,6 +522,11 @@ function init(): void {
   ordersTab.addEventListener("click", () => setActiveTab("orders"));
   createOrderTab.addEventListener("click", () => setActiveTab("createOrder"));
   invoiceTab.addEventListener("click", () => setActiveTab("invoices"));
+  reportsTab.addEventListener("click", () => setActiveTab("reports"));
+  exportOrdersBtn.addEventListener("click", exportOrdersCsv);
+  exportInvoicesBtn.addEventListener("click", exportInvoicesCsv);
+  exportClientSummaryBtn.addEventListener("click", exportClientSummaryCsv);
+  downloadSnapshotBtn.addEventListener("click", () => downloadFile(`report-snapshot-${todayIso()}.txt`, buildSnapshotText(), "text/plain;charset=utf-8;"));
   refreshScreen();
   setActiveTab("dashboard");
 }
