@@ -5,7 +5,7 @@ type PurchaseOrder = {
   clientName: string;
   contractLengthMonths: number;
   contractValue: number;
-  createdAt: string;
+  sentDate: string;
 };
 
 type InvoiceClaim = {
@@ -15,11 +15,11 @@ type InvoiceClaim = {
   claimDate: string;
 };
 
-type TabName = "orders" | "invoices";
+type TabName = "orders" | "createOrder" | "invoices";
 
 const purchaseOrders: PurchaseOrder[] = [
-  { id: "PO-2026-001", clientName: "Apex Retail", contractLengthMonths: 12, contractValue: 120000, createdAt: "2026-01-12" },
-  { id: "PO-2026-002", clientName: "Northstar Labs", contractLengthMonths: 8, contractValue: 84000, createdAt: "2026-01-24" },
+  { id: "PO-2026-001", clientName: "Apex Retail", contractLengthMonths: 12, contractValue: 120000, sentDate: "2026-01-12" },
+  { id: "PO-2026-002", clientName: "Northstar Labs", contractLengthMonths: 8, contractValue: 84000, sentDate: "2026-01-24" },
 ];
 
 const invoiceClaims: InvoiceClaim[] = [
@@ -35,6 +35,8 @@ const clientNameInput = document.getElementById("clientNameInput") as HTMLInputE
 const clientNameSuggestions = document.getElementById("clientNameSuggestions") as HTMLDataListElement;
 const contractLengthInput = document.getElementById("contractLengthInput") as HTMLInputElement;
 const contractValueInput = document.getElementById("contractValueInput") as HTMLInputElement;
+const orderSentDateInput = document.getElementById("orderSentDateInput") as HTMLInputElement;
+const orderSearchInput = document.getElementById("orderSearchInput") as HTMLInputElement;
 
 const invoicePurchaseOrderSelect = document.getElementById("invoicePurchaseOrderSelect") as HTMLSelectElement;
 const claimAmountInput = document.getElementById("claimAmountInput") as HTMLInputElement;
@@ -45,8 +47,10 @@ const invoiceList = document.getElementById("invoiceList") as HTMLDivElement;
 const metricRow = document.getElementById("metricRow") as HTMLDivElement;
 
 const ordersPanel = document.getElementById("ordersPanel") as HTMLElement;
+const createOrderPanel = document.getElementById("createOrderPanel") as HTMLElement;
 const invoicePanel = document.getElementById("invoicePanel") as HTMLElement;
 const ordersTab = document.getElementById("ordersTab") as HTMLButtonElement;
+const createOrderTab = document.getElementById("createOrderTab") as HTMLButtonElement;
 const invoiceTab = document.getElementById("invoiceTab") as HTMLButtonElement;
 
 const currency = new Intl.NumberFormat("en-SG", { style: "currency", currency: "SGD", maximumFractionDigits: 0 });
@@ -54,10 +58,14 @@ const fullDate = new Intl.DateTimeFormat("en-US", { year: "numeric", month: "sho
 
 function setActiveTab(tab: TabName): void {
   const ordersActive = tab === "orders";
+  const createActive = tab === "createOrder";
+  const invoiceActive = tab === "invoices";
   ordersTab.classList.toggle("active", ordersActive);
-  invoiceTab.classList.toggle("active", !ordersActive);
+  createOrderTab.classList.toggle("active", createActive);
+  invoiceTab.classList.toggle("active", invoiceActive);
   ordersPanel.classList.toggle("active", ordersActive);
-  invoicePanel.classList.toggle("active", !ordersActive);
+  createOrderPanel.classList.toggle("active", createActive);
+  invoicePanel.classList.toggle("active", invoiceActive);
 }
 
 function todayIso(): string {
@@ -117,13 +125,19 @@ function renderClientNameSuggestions(): void {
 }
 
 function renderPurchaseOrders(): void {
-  purchaseOrderList.innerHTML = purchaseOrders
+  const query = orderSearchInput.value.trim().toLowerCase();
+  const filteredOrders = purchaseOrders.filter((order) => {
+    if (!query) return true;
+    return order.clientName.toLowerCase().includes(query) || order.id.toLowerCase().includes(query);
+  });
+
+  purchaseOrderList.innerHTML = filteredOrders
     .map(
       (order) => `
       <article class="item-card">
         <div class="item-head">
           <h3>${order.id}</h3>
-          <span>${fullDate.format(new Date(order.createdAt))}</span>
+          <span>Sent ${fullDate.format(new Date(order.sentDate))}</span>
         </div>
         <p class="client">${order.clientName}</p>
         <p class="meta">${order.contractLengthMonths} months contract</p>
@@ -142,8 +156,8 @@ function renderPurchaseOrders(): void {
     )
     .join("");
 
-  if (!purchaseOrders.length) {
-    purchaseOrderList.innerHTML = `<p class="empty">No purchase orders yet.</p>`;
+  if (!filteredOrders.length) {
+    purchaseOrderList.innerHTML = `<p class="empty">${purchaseOrders.length ? "No orders match your search." : "No purchase orders yet."}</p>`;
   }
 }
 
@@ -189,8 +203,9 @@ function onPurchaseOrderSubmit(event: SubmitEvent): void {
   const clientName = clientNameInput.value.trim();
   const contractLengthMonths = Number(contractLengthInput.value);
   const contractValue = Number(contractValueInput.value);
+  const sentDate = orderSentDateInput.value;
 
-  if (!clientName || contractLengthMonths <= 0 || contractValue <= 0) {
+  if (!clientName || contractLengthMonths <= 0 || contractValue <= 0 || !sentDate) {
     return;
   }
 
@@ -199,11 +214,13 @@ function onPurchaseOrderSubmit(event: SubmitEvent): void {
     clientName,
     contractLengthMonths,
     contractValue,
-    createdAt: todayIso(),
+    sentDate,
   });
 
   purchaseOrderForm.reset();
+  orderSentDateInput.value = todayIso();
   refreshScreen();
+  setActiveTab("orders");
 }
 
 function onInvoiceSubmit(event: SubmitEvent): void {
@@ -231,9 +248,12 @@ function onInvoiceSubmit(event: SubmitEvent): void {
 
 function init(): void {
   claimDateInput.value = todayIso();
+  orderSentDateInput.value = todayIso();
   purchaseOrderForm.addEventListener("submit", onPurchaseOrderSubmit);
   invoiceForm.addEventListener("submit", onInvoiceSubmit);
+  orderSearchInput.addEventListener("input", renderPurchaseOrders);
   ordersTab.addEventListener("click", () => setActiveTab("orders"));
+  createOrderTab.addEventListener("click", () => setActiveTab("createOrder"));
   invoiceTab.addEventListener("click", () => setActiveTab("invoices"));
   refreshScreen();
   setActiveTab("orders");

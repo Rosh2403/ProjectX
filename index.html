@@ -23,6 +23,15 @@
         <section class="panels">
           <section id="ordersPanel" class="panel active">
             <h2>Purchase Orders</h2>
+            <label class="field">
+              <span>Search by Client or PO Number</span>
+              <input id="orderSearchInput" type="search" placeholder="Try Apex or PO-2026-001" />
+            </label>
+            <div id="purchaseOrderList" class="list"></div>
+          </section>
+
+          <section id="createOrderPanel" class="panel">
+            <h2>Create Purchase Order</h2>
             <form id="purchaseOrderForm" class="form">
               <label class="field">
                 <span>Client Name</span>
@@ -44,9 +53,12 @@
                 <span>Contract Value (SGD)</span>
                 <input id="contractValueInput" type="number" required min="1" step="1" placeholder="250000" />
               </label>
+              <label class="field">
+                <span>Order Sent Date</span>
+                <input id="orderSentDateInput" type="date" required />
+              </label>
               <button type="submit" class="btn">Add Purchase Order</button>
             </form>
-            <div id="purchaseOrderList" class="list"></div>
           </section>
 
           <section id="invoicePanel" class="panel">
@@ -72,6 +84,7 @@
 
         <nav class="tabbar" aria-label="Primary Tabs">
           <button id="ordersTab" class="tab active" type="button">Purchase Orders</button>
+          <button id="createOrderTab" class="tab" type="button">Create PO</button>
           <button id="invoiceTab" class="tab" type="button">Invoices</button>
         </nav>
       </section>
