@@ -1,3 +1,5 @@
+import "./styles.css";
+
 type PurchaseOrderStatus = "Approved" | "Pending" | "In Review";
 
 type PurchaseOrder = {
