@@ -21,7 +21,16 @@
         </header>
 
         <section class="panels">
-          <section id="ordersPanel" class="panel active">
+          <section id="dashboardPanel" class="panel active">
+            <h2>Dashboard</h2>
+            <div id="dashboardStats" class="dashboard-stats"></div>
+            <h3 class="section-title">By Client</h3>
+            <div id="dashboardClientList" class="list compact"></div>
+            <h3 class="section-title">Monthly Claims</h3>
+            <div id="dashboardMonthlyList" class="list compact"></div>
+          </section>
+
+          <section id="ordersPanel" class="panel">
             <h2>Purchase Orders</h2>
             <div class="order-tools">
               <label class="field">
@@ -94,7 +103,8 @@
         </section>
 
         <nav class="tabbar" aria-label="Primary Tabs">
-          <button id="ordersTab" class="tab active" type="button">Purchase Orders</button>
+          <button id="dashboardTab" class="tab active" type="button">Dashboard</button>
+          <button id="ordersTab" class="tab" type="button">Purchase Orders</button>
           <button id="createOrderTab" class="tab" type="button">Create PO</button>
           <button id="invoiceTab" class="tab" type="button">Invoices</button>
         </nav>
