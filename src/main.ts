@@ -48,7 +48,7 @@ const invoicePanel = document.getElementById("invoicePanel") as HTMLElement;
 const ordersTab = document.getElementById("ordersTab") as HTMLButtonElement;
 const invoiceTab = document.getElementById("invoiceTab") as HTMLButtonElement;
 
-const currency = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
+const currency = new Intl.NumberFormat("en-SG", { style: "currency", currency: "SGD", maximumFractionDigits: 0 });
 const fullDate = new Intl.DateTimeFormat("en-US", { year: "numeric", month: "short", day: "2-digit" });
 
 function setActiveTab(tab: TabName): void {
