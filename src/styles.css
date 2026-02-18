@@ -68,10 +68,11 @@ body {
   height: 72px;
   flex-shrink: 0;
   display: block;
-  object-fit: cover;
+  object-fit: contain;
   border-radius: 12px;
   border: 1px solid rgba(255, 255, 255, 0.45);
-  background: rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.95);
+  padding: 4px;
 }
 
 .eyebrow {
