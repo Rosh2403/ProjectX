@@ -47,6 +47,10 @@ const localSeedInvoiceClaims: InvoiceClaim[] = [
 
 let purchaseOrders: PurchaseOrder[] = [...localSeedPurchaseOrders];
 let invoiceClaims: InvoiceClaim[] = [...localSeedInvoiceClaims];
+let editingPurchaseOrderId: string | null = null;
+let editingInvoiceId: string | null = null;
+const purchaseOrderEditErrors = new Map<string, string>();
+const invoiceEditErrors = new Map<string, string>();
 
 const env = (import.meta as ImportMeta & { env: Record<string, string | undefined> }).env;
 const supabaseUrl = env.VITE_SUPABASE_URL;
@@ -145,6 +149,15 @@ function setFormError(element: HTMLParagraphElement, message: string): void {
 function clearFormError(element: HTMLParagraphElement): void {
   element.textContent = "";
   element.classList.add("hidden");
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
 
 function toCsv(rows: Array<Array<string | number>>): string {
@@ -278,14 +291,53 @@ function renderPurchaseOrders(): void {
   });
 
   purchaseOrderList.innerHTML = sortedOrders
-    .map(
-      (order) => `
+    .map((order) => {
+      const isEditing = editingPurchaseOrderId === order.id;
+      const editError = purchaseOrderEditErrors.get(order.id) ?? "";
+      const invoiced = totalInvoicedForPurchaseOrder(order.id);
+      const remaining = Math.max(order.contractValue - invoiced, 0);
+      const progressWidth = Math.min((invoiced / order.contractValue) * 100, 100);
+
+      if (isEditing) {
+        return `
+        <article class="item-card">
+          <div class="item-head">
+            <h3>${order.id}</h3>
+            <div class="edit-actions">
+              <button class="edit-card-btn" type="button" data-po-save="${order.id}">Save</button>
+              <button class="edit-card-btn subtle" type="button" data-po-cancel="${order.id}">Cancel</button>
+            </div>
+          </div>
+          <div class="inline-edit-grid">
+            <label class="inline-edit-field">
+              <span>Client Name</span>
+              <input class="inline-edit-input" type="text" data-po-input="clientName" data-po-id="${order.id}" value="${escapeHtml(order.clientName)}" />
+            </label>
+            <label class="inline-edit-field">
+              <span>Length (Months)</span>
+              <input class="inline-edit-input" type="number" min="1" data-po-input="contractLengthMonths" data-po-id="${order.id}" value="${order.contractLengthMonths}" />
+            </label>
+            <label class="inline-edit-field">
+              <span>Contract Value (SGD)</span>
+              <input class="inline-edit-input" type="number" min="1" step="1" data-po-input="contractValue" data-po-id="${order.id}" value="${order.contractValue}" />
+            </label>
+            <label class="inline-edit-field">
+              <span>Sent Date</span>
+              <input class="inline-edit-input" type="date" data-po-input="sentDate" data-po-id="${order.id}" value="${order.sentDate}" />
+            </label>
+          </div>
+          ${editError ? `<p class="inline-error">${escapeHtml(editError)}</p>` : ""}
+        </article>
+      `;
+      }
+
+      return `
       <article class="item-card">
         <div class="item-head">
           <h3>${order.id}</h3>
           <div class="item-head-right">
             <span>Sent ${fullDate.format(new Date(order.sentDate))}</span>
-            <button class="edit-card-btn" type="button" data-po-id="${order.id}">Edit</button>
+            <button class="edit-card-btn" type="button" data-po-edit="${order.id}">Edit</button>
           </div>
         </div>
         <p class="client">${order.clientName}</p>
@@ -293,16 +345,16 @@ function renderPurchaseOrders(): void {
         <p class="money">${currency.format(order.contractValue)}</p>
         <div class="progress-wrap">
           <div class="progress-label">
-            <span>Invoiced: ${currency.format(totalInvoicedForPurchaseOrder(order.id))}</span>
-            <span>Remaining: ${currency.format(Math.max(order.contractValue - totalInvoicedForPurchaseOrder(order.id), 0))}</span>
+            <span>Invoiced: ${currency.format(invoiced)}</span>
+            <span>Remaining: ${currency.format(remaining)}</span>
           </div>
           <div class="progress-track">
-            <div class="progress-fill" style="width: ${Math.min((totalInvoicedForPurchaseOrder(order.id) / order.contractValue) * 100, 100)}%"></div>
+            <div class="progress-fill" style="width: ${progressWidth}%"></div>
           </div>
         </div>
       </article>
-    `
-    )
+    `;
+    })
     .join("");
 
   if (!sortedOrders.length) {
@@ -315,20 +367,49 @@ function renderInvoiceClaims(): void {
   invoiceList.innerHTML = sortedClaims
     .map((claim) => {
       const order = purchaseOrders.find((entry) => entry.id === claim.purchaseOrderId);
-      return `
-        <article class="item-card">
-          <div class="item-head">
-            <h3>${claim.id}</h3>
-            <div class="item-head-right">
-              <span>${fullDate.format(new Date(claim.claimDate))}</span>
-              <button class="edit-card-btn" type="button" data-invoice-id="${claim.id}">Edit</button>
+      const isEditing = editingInvoiceId === claim.id;
+      const editError = invoiceEditErrors.get(claim.id) ?? "";
+
+      if (isEditing) {
+        return `
+          <article class="item-card">
+            <div class="item-head">
+              <h3>${claim.id}</h3>
+              <div class="edit-actions">
+                <button class="edit-card-btn" type="button" data-invoice-save="${claim.id}">Save</button>
+                <button class="edit-card-btn subtle" type="button" data-invoice-cancel="${claim.id}">Cancel</button>
+              </div>
             </div>
+            <p class="meta">${order ? `${order.clientName} (${order.id})` : claim.purchaseOrderId}</p>
+            <div class="inline-edit-grid">
+              <label class="inline-edit-field">
+                <span>Claim Amount (SGD)</span>
+                <input class="inline-edit-input" type="number" min="1" step="1" data-invoice-input="amount" data-invoice-id="${claim.id}" value="${claim.amount}" />
+              </label>
+              <label class="inline-edit-field">
+                <span>Claim Date</span>
+                <input class="inline-edit-input" type="date" data-invoice-input="claimDate" data-invoice-id="${claim.id}" value="${claim.claimDate}" />
+              </label>
+            </div>
+            ${editError ? `<p class="inline-error">${escapeHtml(editError)}</p>` : ""}
+          </article>
+        `;
+      }
+
+      return `
+      <article class="item-card">
+        <div class="item-head">
+          <h3>${claim.id}</h3>
+          <div class="item-head-right">
+            <span>${fullDate.format(new Date(claim.claimDate))}</span>
+            <button class="edit-card-btn" type="button" data-invoice-edit="${claim.id}">Edit</button>
           </div>
-          <p class="client">${order ? `${order.clientName} (${order.id})` : claim.purchaseOrderId}</p>
-          <p class="money">${currency.format(claim.amount)}</p>
-          <p class="meta">Progress claim added to contract</p>
-        </article>
-      `;
+        </div>
+        <p class="client">${order ? `${order.clientName} (${order.id})` : claim.purchaseOrderId}</p>
+        <p class="money">${currency.format(claim.amount)}</p>
+        <p class="meta">Progress claim added to contract</p>
+      </article>
+    `;
     })
     .join("");
 
@@ -472,45 +553,48 @@ async function editPurchaseOrderById(orderId: string): Promise<void> {
   const order = purchaseOrders.find((entry) => entry.id === orderId);
   if (!order) return;
 
-  const nextClientName = window.prompt("Client name", order.clientName);
-  if (nextClientName === null) return;
-  const clientName = nextClientName.trim();
+  const clientNameInput = document.querySelector<HTMLInputElement>(`input[data-po-input="clientName"][data-po-id="${orderId}"]`);
+  const contractLengthInput = document.querySelector<HTMLInputElement>(`input[data-po-input="contractLengthMonths"][data-po-id="${orderId}"]`);
+  const contractValueInput = document.querySelector<HTMLInputElement>(`input[data-po-input="contractValue"][data-po-id="${orderId}"]`);
+  const sentDateInput = document.querySelector<HTMLInputElement>(`input[data-po-input="sentDate"][data-po-id="${orderId}"]`);
+
+  if (!clientNameInput || !contractLengthInput || !contractValueInput || !sentDateInput) return;
+
+  const clientName = clientNameInput.value.trim();
+  const contractLengthMonths = Number(contractLengthInput.value);
+  const contractValue = Number(contractValueInput.value);
+  const sentDate = sentDateInput.value.trim();
+
   if (!clientName) {
-    window.alert("Client name cannot be empty.");
+    purchaseOrderEditErrors.set(orderId, "Client name cannot be empty.");
+    refreshScreen();
     return;
   }
-
-  const nextLengthRaw = window.prompt("Contract length (months)", String(order.contractLengthMonths));
-  if (nextLengthRaw === null) return;
-  const contractLengthMonths = Number(nextLengthRaw);
   if (!Number.isInteger(contractLengthMonths) || contractLengthMonths <= 0) {
-    window.alert("Contract length must be a positive whole number.");
+    purchaseOrderEditErrors.set(orderId, "Contract length must be a positive whole number.");
+    refreshScreen();
     return;
   }
-
-  const nextValueRaw = window.prompt("Contract value (SGD)", String(order.contractValue));
-  if (nextValueRaw === null) return;
-  const contractValue = Number(nextValueRaw);
   if (Number.isNaN(contractValue) || contractValue <= 0) {
-    window.alert("Contract value must be greater than 0.");
+    purchaseOrderEditErrors.set(orderId, "Contract value must be greater than 0.");
+    refreshScreen();
     return;
   }
 
   const alreadyInvoiced = totalInvoicedForPurchaseOrder(order.id);
   if (contractValue < alreadyInvoiced) {
-    window.alert(`Contract value cannot be below invoiced total (${currency.format(alreadyInvoiced)}).`);
+    purchaseOrderEditErrors.set(orderId, `Contract value cannot be below invoiced total (${currency.format(alreadyInvoiced)}).`);
+    refreshScreen();
     return;
   }
-
-  const nextSentDate = window.prompt("Order sent date (YYYY-MM-DD)", order.sentDate);
-  if (nextSentDate === null) return;
-  const sentDate = nextSentDate.trim();
   if (!isValidIsoDate(sentDate)) {
-    window.alert("Sent date must be in YYYY-MM-DD format.");
+    purchaseOrderEditErrors.set(orderId, "Sent date must be in YYYY-MM-DD format.");
+    refreshScreen();
     return;
   }
   if (sentDate > todayIso()) {
-    window.alert("Order sent date cannot be in the future.");
+    purchaseOrderEditErrors.set(orderId, "Order sent date cannot be in the future.");
+    refreshScreen();
     return;
   }
 
@@ -525,7 +609,8 @@ async function editPurchaseOrderById(orderId: string): Promise<void> {
       })
       .eq("id", order.id);
     if (error) {
-      window.alert(`Could not update purchase order: ${error.message}`);
+      purchaseOrderEditErrors.set(orderId, `Could not update purchase order: ${error.message}`);
+      refreshScreen();
       return;
     }
   }
@@ -534,6 +619,8 @@ async function editPurchaseOrderById(orderId: string): Promise<void> {
   order.contractLengthMonths = contractLengthMonths;
   order.contractValue = contractValue;
   order.sentDate = sentDate;
+  purchaseOrderEditErrors.delete(orderId);
+  editingPurchaseOrderId = null;
   refreshScreen();
 }
 
@@ -543,31 +630,32 @@ async function editInvoiceById(invoiceId: string): Promise<void> {
   const order = purchaseOrders.find((entry) => entry.id === claim.purchaseOrderId);
   if (!order) return;
 
+  const amountInput = document.querySelector<HTMLInputElement>(`input[data-invoice-input="amount"][data-invoice-id="${invoiceId}"]`);
+  const claimDateInput = document.querySelector<HTMLInputElement>(`input[data-invoice-input="claimDate"][data-invoice-id="${invoiceId}"]`);
+  if (!amountInput || !claimDateInput) return;
+
+  const amount = Number(amountInput.value);
+  const claimDate = claimDateInput.value.trim();
   const maxAllowedAmount = order.contractValue - (totalInvoicedForPurchaseOrder(order.id) - claim.amount);
-  const nextAmountRaw = window.prompt(
-    `Claim amount (SGD). Max allowed: ${currency.format(maxAllowedAmount)}`,
-    String(claim.amount)
-  );
-  if (nextAmountRaw === null) return;
-  const amount = Number(nextAmountRaw);
+
   if (Number.isNaN(amount) || amount <= 0) {
-    window.alert("Claim amount must be greater than 0.");
+    invoiceEditErrors.set(invoiceId, "Claim amount must be greater than 0.");
+    refreshScreen();
     return;
   }
   if (amount > maxAllowedAmount) {
-    window.alert(`Claim cannot exceed ${currency.format(maxAllowedAmount)} for this contract.`);
+    invoiceEditErrors.set(invoiceId, `Claim cannot exceed ${currency.format(maxAllowedAmount)} for this contract.`);
+    refreshScreen();
     return;
   }
-
-  const nextDate = window.prompt("Claim date (YYYY-MM-DD)", claim.claimDate);
-  if (nextDate === null) return;
-  const claimDate = nextDate.trim();
   if (!isValidIsoDate(claimDate)) {
-    window.alert("Claim date must be in YYYY-MM-DD format.");
+    invoiceEditErrors.set(invoiceId, "Claim date must be in YYYY-MM-DD format.");
+    refreshScreen();
     return;
   }
   if (claimDate > todayIso()) {
-    window.alert("Claim date cannot be in the future.");
+    invoiceEditErrors.set(invoiceId, "Claim date cannot be in the future.");
+    refreshScreen();
     return;
   }
 
@@ -577,32 +665,71 @@ async function editInvoiceById(invoiceId: string): Promise<void> {
       .update({ amount, claim_date: claimDate })
       .eq("id", claim.id);
     if (error) {
-      window.alert(`Could not update invoice claim: ${error.message}`);
+      invoiceEditErrors.set(invoiceId, `Could not update invoice claim: ${error.message}`);
+      refreshScreen();
       return;
     }
   }
 
   claim.amount = amount;
   claim.claimDate = claimDate;
+  invoiceEditErrors.delete(invoiceId);
+  editingInvoiceId = null;
   refreshScreen();
 }
 
 async function onPurchaseOrderListClick(event: MouseEvent): Promise<void> {
   const target = event.target as HTMLElement | null;
-  const button = target?.closest<HTMLButtonElement>("[data-po-id]");
-  if (!button) return;
-  const orderId = button.dataset.poId;
-  if (!orderId) return;
-  await editPurchaseOrderById(orderId);
+  const editButton = target?.closest<HTMLButtonElement>("[data-po-edit]");
+  if (editButton?.dataset.poEdit) {
+    editingPurchaseOrderId = editButton.dataset.poEdit;
+    purchaseOrderEditErrors.delete(editButton.dataset.poEdit);
+    refreshScreen();
+    return;
+  }
+
+  const cancelButton = target?.closest<HTMLButtonElement>("[data-po-cancel]");
+  if (cancelButton?.dataset.poCancel) {
+    const orderId = cancelButton.dataset.poCancel;
+    if (editingPurchaseOrderId === orderId) {
+      editingPurchaseOrderId = null;
+    }
+    purchaseOrderEditErrors.delete(orderId);
+    refreshScreen();
+    return;
+  }
+
+  const saveButton = target?.closest<HTMLButtonElement>("[data-po-save]");
+  if (saveButton?.dataset.poSave) {
+    await editPurchaseOrderById(saveButton.dataset.poSave);
+  }
 }
 
 async function onInvoiceListClick(event: MouseEvent): Promise<void> {
   const target = event.target as HTMLElement | null;
-  const button = target?.closest<HTMLButtonElement>("[data-invoice-id]");
-  if (!button) return;
-  const invoiceId = button.dataset.invoiceId;
-  if (!invoiceId) return;
-  await editInvoiceById(invoiceId);
+  const editButton = target?.closest<HTMLButtonElement>("[data-invoice-edit]");
+  if (editButton?.dataset.invoiceEdit) {
+    editingInvoiceId = editButton.dataset.invoiceEdit;
+    invoiceEditErrors.delete(editButton.dataset.invoiceEdit);
+    refreshScreen();
+    return;
+  }
+
+  const cancelButton = target?.closest<HTMLButtonElement>("[data-invoice-cancel]");
+  if (cancelButton?.dataset.invoiceCancel) {
+    const invoiceId = cancelButton.dataset.invoiceCancel;
+    if (editingInvoiceId === invoiceId) {
+      editingInvoiceId = null;
+    }
+    invoiceEditErrors.delete(invoiceId);
+    refreshScreen();
+    return;
+  }
+
+  const saveButton = target?.closest<HTMLButtonElement>("[data-invoice-save]");
+  if (saveButton?.dataset.invoiceSave) {
+    await editInvoiceById(saveButton.dataset.invoiceSave);
+  }
 }
 
 function refreshScreen(): void {
