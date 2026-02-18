@@ -52,7 +52,6 @@ const metricRow = document.getElementById("metricRow") as HTMLDivElement;
 const dashboardStats = document.getElementById("dashboardStats") as HTMLDivElement;
 const dashboardClientList = document.getElementById("dashboardClientList") as HTMLDivElement;
 const dashboardMonthlyList = document.getElementById("dashboardMonthlyList") as HTMLDivElement;
-const reportSnapshot = document.getElementById("reportSnapshot") as HTMLPreElement;
 
 const dashboardPanel = document.getElementById("dashboardPanel") as HTMLElement;
 const ordersPanel = document.getElementById("ordersPanel") as HTMLElement;
@@ -67,7 +66,6 @@ const reportsTab = document.getElementById("reportsTab") as HTMLButtonElement;
 const exportOrdersBtn = document.getElementById("exportOrdersBtn") as HTMLButtonElement;
 const exportInvoicesBtn = document.getElementById("exportInvoicesBtn") as HTMLButtonElement;
 const exportClientSummaryBtn = document.getElementById("exportClientSummaryBtn") as HTMLButtonElement;
-const downloadSnapshotBtn = document.getElementById("downloadSnapshotBtn") as HTMLButtonElement;
 
 const currency = new Intl.NumberFormat("en-SG", { style: "currency", currency: "SGD", maximumFractionDigits: 0 });
 const fullDate = new Intl.DateTimeFormat("en-US", { year: "numeric", month: "short", day: "2-digit" });
@@ -351,28 +349,6 @@ function buildClientSummaryRows(): Array<Array<string | number>> {
     });
 }
 
-function buildSnapshotText(): string {
-  const totalContractValue = purchaseOrders.reduce((sum, order) => sum + order.contractValue, 0);
-  const totalInvoiced = invoiceClaims.reduce((sum, claim) => sum + claim.amount, 0);
-  const remaining = Math.max(totalContractValue - totalInvoiced, 0);
-
-  return [
-    `Joe Tech Engineering Report Snapshot`,
-    `Generated: ${new Date().toLocaleString("en-SG")}`,
-    ``,
-    `Contracts: ${purchaseOrders.length}`,
-    `Total Contract Value: ${currency.format(totalContractValue)}`,
-    `Total Invoiced: ${currency.format(totalInvoiced)}`,
-    `Remaining: ${currency.format(remaining)}`,
-    ``,
-    `Top Clients by Contract Value:`,
-    ...buildClientSummaryRows()
-      .sort((a, b) => Number(b[2]) - Number(a[2]))
-      .slice(0, 5)
-      .map((row, index) => `${index + 1}. ${row[0]} - ${currency.format(Number(row[2]))} (Invoiced: ${currency.format(Number(row[3]))})`),
-  ].join("\n");
-}
-
 function exportOrdersCsv(): void {
   const rows: Array<Array<string | number>> = [
     ["PO Number", "Client Name", "Contract Length (Months)", "Contract Value (SGD)", "Order Sent Date", "Invoiced (SGD)", "Remaining (SGD)"],
@@ -408,10 +384,6 @@ function exportClientSummaryCsv(): void {
   downloadFile(`client-summary-${todayIso()}.csv`, toCsv(rows), "text/csv;charset=utf-8;");
 }
 
-function renderReportSnapshot(): void {
-  reportSnapshot.textContent = buildSnapshotText();
-}
-
 function refreshScreen(): void {
   renderHeaderMetrics();
   renderDashboard();
@@ -419,7 +391,6 @@ function refreshScreen(): void {
   renderInvoicePurchaseOrderOptions();
   renderPurchaseOrders();
   renderInvoiceClaims();
-  renderReportSnapshot();
 }
 
 function createId(prefix: "PO" | "INV"): string {
@@ -526,7 +497,6 @@ function init(): void {
   exportOrdersBtn.addEventListener("click", exportOrdersCsv);
   exportInvoicesBtn.addEventListener("click", exportInvoicesCsv);
   exportClientSummaryBtn.addEventListener("click", exportClientSummaryCsv);
-  downloadSnapshotBtn.addEventListener("click", () => downloadFile(`report-snapshot-${todayIso()}.txt`, buildSnapshotText(), "text/plain;charset=utf-8;"));
   refreshScreen();
   setActiveTab("dashboard");
 }

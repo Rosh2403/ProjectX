@@ -261,18 +261,6 @@ input:focus {
   font-size: 12px;
 }
 
-.snapshot {
-  margin: 10px 0 0;
-  padding: 10px;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  background: #fbfdff;
-  color: var(--ink);
-  font-size: 12px;
-  line-height: 1.4;
-  white-space: pre-wrap;
-}
-
 .item-card {
   border: 1px solid var(--line);
   border-radius: 14px;
