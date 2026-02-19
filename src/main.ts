@@ -79,6 +79,7 @@ const purchaseOrderList = document.getElementById("purchaseOrderList") as HTMLDi
 const invoiceList = document.getElementById("invoiceList") as HTMLDivElement;
 const metricRow = document.getElementById("metricRow") as HTMLDivElement;
 const dashboardStats = document.getElementById("dashboardStats") as HTMLDivElement;
+const dashboardPoProgressList = document.getElementById("dashboardPoProgressList") as HTMLDivElement;
 const dashboardClientList = document.getElementById("dashboardClientList") as HTMLDivElement;
 const dashboardMonthlyList = document.getElementById("dashboardMonthlyList") as HTMLDivElement;
 const dataStatus = document.getElementById("dataStatus") as HTMLParagraphElement;
@@ -438,6 +439,37 @@ function renderDashboard(): void {
       `
     )
     .join("");
+
+  const poProgress = [...purchaseOrders].sort((a, b) => a.clientName.localeCompare(b.clientName));
+  dashboardPoProgressList.innerHTML = poProgress
+    .map((order) => {
+      const invoiced = totalInvoicedForPurchaseOrder(order.id);
+      const remaining = Math.max(order.contractValue - invoiced, 0);
+      const percent = order.contractValue > 0 ? Math.min(Math.round((invoiced / order.contractValue) * 100), 100) : 0;
+      return `
+        <article class="item-card">
+          <div class="item-head">
+            <h3>${order.id}</h3>
+            <span>${order.clientName}</span>
+          </div>
+          <div class="progress-wrap">
+            <div class="progress-label">
+              <span>${currency.format(invoiced)} / ${currency.format(order.contractValue)}</span>
+              <span>${percent}%</span>
+            </div>
+            <div class="progress-track">
+              <div class="progress-fill" style="width: ${percent}%"></div>
+            </div>
+          </div>
+          <p class="meta">Remaining: ${currency.format(remaining)}</p>
+        </article>
+      `;
+    })
+    .join("");
+
+  if (!poProgress.length) {
+    dashboardPoProgressList.innerHTML = `<p class="empty">No purchase orders yet.</p>`;
+  }
 
   const clientSummary = [...new Set(purchaseOrders.map((order) => order.clientName))]
     .map((clientName) => {
